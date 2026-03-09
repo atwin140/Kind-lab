@@ -258,8 +258,41 @@ kind delete cluster --name lab
 
 ---
 
-## Next steps (optional)
-If you want, your next “level up” after this is:
+## Next Steps
+
+### Continue Learning with FluxCD GitOps Lab
+
+Ready to take your Kubernetes skills to the next level? This repository includes a comprehensive **FluxCD GitOps lab** that teaches you how to:
+
+- Deploy FluxCD for continuous delivery
+- Connect Kubernetes to GitHub for automated deployments
+- Implement GitOps workflows
+- Monitor and troubleshoot FluxCD controllers
+
+**To access the FluxCD lab:**
+
+1. **Switch to the FluxCD lab branch:**
+   ```bash
+   git checkout Fluxcd-Lab
+   ```
+
+2. **Follow the complete guide:**
+   - See [README-FLUXCD.md](README-FLUXCD.md) for a professional, step-by-step guide
+   - Includes both public and private repository configurations
+   - Complete troubleshooting and monitoring sections
+
+3. **What you'll learn:**
+   - Installing FluxCD on KinD clusters
+   - Configuring GitRepository and Kustomization resources
+   - Using HTTPS and SSH authentication with GitHub
+   - Monitoring pod status and FluxCD controllers
+   - Implementing GitOps best practices
+
+### Other Optional Next Steps
+
+If you want to explore more Kubernetes concepts:
 - `kubectl port-forward` (quick dev loop)
 - Ingress (NGINX Ingress Controller) instead of NodePort
-- building images locally and loading into KinD (`kind load docker-image ...`)
+- Building images locally and loading into KinD (`kind load docker-image ...`)
+- Helm charts for package management
+- Kubernetes operators for advanced automation
