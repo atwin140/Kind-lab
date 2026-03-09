@@ -1,247 +1,265 @@
-# Kind-lab2 FLUXCD
+# Kind-lab
 A place to learn about kube
-# Getting started with Fluxcd in a kind cluster
-- build new kind cluster
-- Deploy Fluxcd 
-- Connect to Repo and deploy new web page
+# Getting started with KinD on RHEL 10 (and deploying NGINX from a ConfigMap)
 
+You’ve got years of Solaris muscle-memory — nice. Think of this as building a **little “zones-like” Kubernetes playground** right on your laptop: KinD runs each Kubernetes “node” as a container.
 
-# Build Kind cluster
+This guide sets up:
+- **KinD (Kubernetes in Docker/Podman)**
+- an **NGINX Deployment** serving a web page stored in a **ConfigMap**
+- a **NodePort** Service mapped so you can hit it from **localhost**
 
-```bash
-kind create cluster --config=kind-cluster.yaml
-```
+---
 
-# Deploy FluxCD
+## 0) Prereqs (what you need installed)
 
-```bash
-./deploy-flux.sh
-```
+### Packages
+On RHEL 10, Podman is the standard container engine. KinD can use **rootless Podman** (via the Podman socket / Docker-compatible API). KinD supports rootless Podman and requires cgroup v2 on the host. citeturn0search0turn0search12
 
-This script will:
-- Download the FluxCD v2.2.3 installation manifests
-- Apply them to your cluster
-- Wait for all Flux controllers to be ready
-
-or you can just run 
-```
-kubectl apply -n flux-system -f https://github.com/fluxcd/flux2/releases/download/v2.2.3/install.yaml
-```
-
-# Connect FluxCD to Git Repository
-
-## Option 1: Public Repository (HTTPS - No Keys Required)
-
-For public repositories, you can use HTTPS without any authentication.
-
-### 1. Create GitRepository Resource
-
-Create a file called `gitrepository.yaml`:
-
-```yaml
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
-metadata:
-  name: kind-lab
-  namespace: flux-system
-spec:
-  interval: 1m
-  url: https://github.com/atwin140/Kind-lab.git
-  ref:
-    branch: Fluxcd-Lab
-```
-
-Apply it:
-```bash
-kubectl apply -f gitrepository.yaml
-```
-
-### 2. Create Kustomization to Deploy Components
-
-Create a file called `kustomization-sync.yaml`:
-
-```yaml
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: kind-lab-components
-  namespace: flux-system
-spec:
-  interval: 5m
-  path: ./components
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: kind-lab
-```
-
-Apply it:
-```bash
-kubectl apply -f kustomization-sync.yaml
-```
-
-### 3. Verify
-
-Check that Flux is syncing with your repository:
+Install baseline tools:
 
 ```bash
-# Check GitRepository status
-kubectl get gitrepository -n flux-system
-
-# Check Kustomization status
-kubectl get kustomization -n flux-system
-
-# Get detailed status with conditions
-kubectl describe gitrepository kind-lab -n flux-system
-kubectl describe kustomization kind-lab-components -n flux-system
+sudo dnf install -y \
+  podman podman-docker \
+  curl wget git \
+  tar gzip
 ```
 
-## Do a test curl
+> `podman-docker` provides Docker CLI compatibility (so tools that expect `docker` can still work). citeturn0search2
+
+---
+
+## 1) Enable the Podman API socket (Docker-compatible endpoint)
+
+### Rootless (recommended for a laptop)
+Enable the user socket:
+
 ```bash
-curl -s http://localhost:30080 && echo "" || echo "Port 30080: Connection failed"
+systemctl --user enable --now podman.socket
 ```
 
+Point Docker-compatible tools at the Podman socket:
 
-.
-# Trouble shooting and test
-## Monitoring Pod Status
-
-### Check all pods across all namespaces:
 ```bash
-# View all pods in all namespaces
-kubectl get pods -A
-
-# View all pods with more details (node, IP, etc.)
-kubectl get pods -A -o wide
-
-# Watch pods in real-time (updates automatically)
-kubectl get pods -A -w
-
-# View pods with their status sorted
-kubectl get pods -A --sort-by=.status.phase
+export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
 ```
 
-### Check Flux system pods specifically:
+Add that export to your shell profile so it persists (pick one):
+
 ```bash
-# Check Flux pods
-kubectl get pods -n flux-system
-
-# Get detailed info about Flux pods
-kubectl get pods -n flux-system -o wide
-
-# Check pod logs (replace POD_NAME with actual pod name)
-kubectl logs -n flux-system <POD_NAME>
-
-# Follow logs in real-time
-kubectl logs -n flux-system <POD_NAME> -f
-
-# Check logs for all source-controller pods
-kubectl logs -n flux-system -l app=source-controller
-
-# Check logs for all kustomize-controller pods
-kubectl logs -n flux-system -l app=kustomize-controller
+echo 'export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"' >> ~/.bashrc
+# or
+echo 'export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"' >> ~/.zshrc
 ```
 
-### Check pods in specific namespaces:
+These steps follow Red Hat’s RHEL 10 container-tools guidance for enabling `podman.socket` and using `DOCKER_HOST` for rootless Podman compatibility. citeturn0search2
+
+Quick sanity check:
+
 ```bash
-# View pods in default namespace
-kubectl get pods
-
-# View pods in a specific namespace
-kubectl get pods -n <namespace>
-
-# Check pod resource usage
-kubectl top pods -A
-```
-
-### Troubleshooting pods:
-```bash
-# Describe a specific pod for detailed info and events
-kubectl describe pod <POD_NAME> -n <namespace>
-
-# Get pod events across all namespaces
-kubectl get events -A --sort-by='.lastTimestamp'
-
-# Check for failed/pending pods
-kubectl get pods -A --field-selector=status.phase!=Running
+podman info
+podman ps
 ```
 
 ---
 
-## Option 2: Private Repository or SSH (Requires Keys)
+## 2) Install kubectl
 
-If your repository is private or you prefer SSH authentication:
-
-### 1. Create SSH Keys
-
-Generate an SSH key pair for FluxCD to authenticate with GitHub:
+Kubernetes upstream provides a simple “download the stable binary” method. citeturn0search1
 
 ```bash
-ssh-keygen -t ed25519 -C "flux@kind-lab" -f ./flux-deploy-key -N ""
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+kubectl version --client
 ```
 
-This creates:
-- `flux-deploy-key` (private key)
-- `flux-deploy-key.pub` (public key)
+> If your laptop is ARM64, swap `amd64` for `arm64`.
 
-### 2. Add Deploy Key to GitHub
+---
 
-1. Copy the public key:
-   ```bash
-   cat flux-deploy-key.pub
-   ```
+## 3) Install kind
 
-2. Go to your GitHub repository: https://github.com/atwin140/Kind-lab
-3. Navigate to **Settings** → **Deploy keys** → **Add deploy key**
-4. Paste the public key and give it a title (e.g., "FluxCD Deploy Key")
-5. Check "Allow write access" if Flux needs to commit back to the repo
-6. Click **Add key**
+KinD’s quick start recommends installing from the release binaries. citeturn0search5
 
-### 3. Create Kubernetes Secrets
-
-Get GitHub's SSH host keys and create the secret:
+Example for x86_64:
 
 ```bash
-ssh-keyscan github.com > known_hosts
-
-kubectl create secret generic flux-ssh-key \
-  --from-file=identity=flux-deploy-key \
-  --from-file=known_hosts=known_hosts \
-  -n flux-system
+# Pick a version from the GitHub releases page; this grabs the latest if you paste the right URL.
+# Replace <VERSION> with something like v0.23.0 (or whatever is current).
+curl -Lo kind "https://kind.sigs.k8s.io/dl/<VERSION>/kind-linux-amd64"
+chmod +x kind
+sudo mv kind /usr/local/bin/
+kind version
 ```
 
-### 4. Create GitRepository Resource
+> If you prefer, you can also install via package managers (as available), but the release binary is the most universal path.
 
-Create a file called `gitrepository.yaml`:
+---
+
+## 4) Create a KinD cluster with NodePort mapped to localhost
+
+### Why the extra port mapping?
+In KinD, “nodes” are containers. A **NodePort** opens on the *node*, but that’s still inside the container network.  
+So to reach it via `localhost`, you map that NodePort from the node-container to your host using `extraPortMappings`. citeturn0search11turn0search15
+
+Create `kind-cluster.yaml`:
 
 ```yaml
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 30080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+```
+
+This is the same mechanism documented in KinD’s configuration docs (`extraPortMappings`). citeturn0search11
+
+Create the cluster:
+
+```bash
+kind create cluster --name lab --config kind-cluster.yaml
+kubectl cluster-info --context kind-lab
+kubectl get nodes -o wide
+```
+
+---
+
+## 5) Deploy NGINX serving a page from a ConfigMap
+
+Create `nginx-cm-nodeport.yaml`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: kind-lab
-  namespace: flux-system
+  name: nginx-html
+data:
+  index.html: |
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Hello from KinD</title>
+      </head>
+      <body>
+        <h1>Hakuna Matata — your NGINX page is live 🎉</h1>
+        <p>Served from a Kubernetes ConfigMap, running on KinD.</p>
+      </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
 spec:
-  interval: 1m
-  url: ssh://git@github.com/atwin140/Kind-lab.git
-  ref:
-    branch: Fluxcd-Lab
-  secretRef:
-    name: flux-ssh-key
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:stable
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            # Replace the default index.html with our ConfigMap's index.html
+            - name: html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+      volumes:
+        - name: html
+          configMap:
+            name: nginx-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-nodeport
+spec:
+  type: NodePort
+  selector:
+    app: nginx
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
 ```
 
 Apply it:
+
 ```bash
-kubectl apply -f gitrepository.yaml
+kubectl apply -f nginx-cm-nodeport.yaml
+kubectl get pods -l app=nginx -w
 ```
 
-Then follow steps 2-3 from Option 1 to create the Kustomization and verify.
+When the Pod is `Running`, check the Service:
 
-
-# some shortcuts
-
-I like to use alias to save on typing
+```bash
+kubectl get svc nginx-nodeport
 ```
-alias k=kubectl
-alias kf="kubectl -n flux-system"
-alias kn="kubectl -n nginx"
+
+---
+
+## 6) Access the page from localhost
+
+Because we mapped **NodePort 30080** to **host port 30080** in the KinD config, you can hit:
+
+```bash
+curl -i http://localhost:30080
 ```
+
+Or open in a browser:
+
+- http://localhost:30080
+
+---
+
+## 7) Quick troubleshooting spells (if something acts like Scar)
+
+### `kind create cluster` can’t find Docker / can’t talk to the daemon
+Make sure the Podman socket is enabled and `DOCKER_HOST` is set (rootless Podman). citeturn0search2
+
+```bash
+systemctl --user status podman.socket
+echo "$DOCKER_HOST"
+```
+
+### NodePort reachable from inside cluster but not from localhost
+You must create the cluster **with the port mapping** (you can’t add `extraPortMappings` after the fact). citeturn0search15  
+If needed:
+
+```bash
+kind delete cluster --name lab
+kind create cluster --name lab --config kind-cluster.yaml
+```
+
+### Rootless requirements
+KinD supports rootless Podman and expects cgroup v2 hosts for that mode. citeturn0search0turn0search12
+
+---
+
+## 8) Cleanup
+
+```bash
+kubectl delete -f nginx-cm-nodeport.yaml
+kind delete cluster --name lab
+```
+
+---
+
+## Next steps (optional)
+If you want, your next “level up” after this is:
+- `kubectl port-forward` (quick dev loop)
+- Ingress (NGINX Ingress Controller) instead of NodePort
+- building images locally and loading into KinD (`kind load docker-image ...`)
