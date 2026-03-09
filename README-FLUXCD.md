@@ -32,6 +32,13 @@ This lab demonstrates:
 - 2 worker nodes
 - FluxCD controllers running in `flux-system` namespace
 - Applications deployed from Git repository
+- **NGINX** web server with custom ConfigMap
+- **Traefik** ingress controller for traffic routing
+
+**What Gets Deployed:**
+- NGINX on port 30080 (direct NodePort access)
+- Traefik on port 30090 (ingress controller with creative dashboard)
+- Automatic GitOps sync from GitHub repository
 
 ---
 
@@ -99,8 +106,9 @@ kubectl get nodes
 Expected output: 1 control-plane node and 2 worker nodes.
 
 **Port Mappings:**
-- `30080` → HTTP service
+- `30080` → NGINX HTTP service
 - `30081` → Alternative HTTP service
+- `30090` → Traefik ingress controller
 - `30443` → HTTPS service
 
 ---
@@ -188,6 +196,13 @@ spec:
 ```bash
 kubectl apply -f kustomization-sync.yaml
 ```
+
+**What this deploys:**
+
+FluxCD will automatically deploy everything in the `./components` directory:
+- **NGINX** - Web server with custom HTML (port 30080)
+- **Traefik** - Ingress controller with creative dashboard (port 30090)
+- **Ingress Rules** - Routes traffic from Traefik to NGINX
 
 ---
 
@@ -288,23 +303,32 @@ kubectl get pods -n nginx
 
 Once FluxCD has synced and deployed your applications, test the services:
 
-**Test HTTP service on port 30080:**
+**Test NGINX on port 30080:**
 ```bash
 curl http://localhost:30080
 ```
 
 Expected response: HTML page served by NGINX with "Hello from Oklahoma"
 
+**Test Traefik on port 30090:**
+```bash
+curl http://localhost:30090
+```
+
+Expected response: Creative HTML page showing a plane being directed by Traefik air traffic control!
+
 **Test with verbose output:**
 ```bash
 curl -v http://localhost:30080
+curl -v http://localhost:30090
 ```
 
-**Test other ports:**
-```bash
-curl http://localhost:30081
-curl -k https://localhost:30443
-```
+**For more details on Traefik:**
+See [README-Traefik.md](README-Traefik.md) for:
+- How Traefik works as an ingress controller
+- Creating Ingress routes
+- Accessing the Traefik dashboard
+- Advanced traffic routing
 
 ---
 
