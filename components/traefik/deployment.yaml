@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: traefik
+    spec:
+      serviceAccountName: traefik
+      containers:
+      - name: traefik
+        image: traefik:v3.2
+        args:
+          # Enable API and Dashboard
+          - --api.dashboard=true
+          - --api.insecure=true
+          # Define entrypoints
+          - --entrypoints.web.address=:80
+          - --entrypoints.traefik.address=:8080
+          # Enable Kubernetes Ingress provider
+          - --providers.kubernetesingress=true
+          # Enable Kubernetes CRD provider
+          - --providers.kubernetescrd=true
+          # Logging
+          - --log.level=INFO
+          - --accesslog=true
+        ports:
+        - name: web
+          containerPort: 80
+          protocol: TCP
+        - name: traefik
+          containerPort: 8080
+          protocol: TCP
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/traefik/index.html
+          subPath: index.html
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: html
+        configMap:
+          name: traefik-html
