@@ -6,14 +6,13 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: traefik
   ports:
   - name: web
     port: 80
     targetPort: web
-    nodePort: 30090
     protocol: TCP
   - name: traefik
     port: 8080
