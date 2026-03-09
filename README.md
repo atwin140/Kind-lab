@@ -96,6 +96,14 @@ kubectl describe gitrepository kind-lab -n flux-system
 kubectl describe kustomization kind-lab-components -n flux-system
 ```
 
+## Do a test curl
+```bash
+curl -s http://localhost:30080 && echo "" || echo "Port 30080: Connection failed"
+```
+
+
+.
+# Trouble shooting and test
 ## Monitoring Pod Status
 
 ### Check all pods across all namespaces:
@@ -229,7 +237,7 @@ kubectl apply -f gitrepository.yaml
 Then follow steps 2-3 from Option 1 to create the Kustomization and verify.
 
 
-# Check the status
+# some shortcuts
 
 I like to use alias to save on typing
 ```
@@ -237,4 +245,3 @@ alias k=kubectl
 alias kf="kubectl -n flux-system"
 alias kn="kubectl -n nginx"
 ```
-now lets check ths status 
