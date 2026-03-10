@@ -7,6 +7,8 @@ metadata:
     app.kubernetes.io/name: traefik
 spec:
   type: LoadBalancer
+  # Uncomment to request specific VIP from KubeVIP
+  # loadBalancerIP: 192.168.1.240
   selector:
     app.kubernetes.io/name: traefik
   ports:

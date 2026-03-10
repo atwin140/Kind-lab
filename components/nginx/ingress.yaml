@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: nginx.local
+  - host: nginx.kind.local
     http:
       paths:
       - path: /

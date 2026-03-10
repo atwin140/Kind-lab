@@ -34,11 +34,17 @@ This lab demonstrates:
 - Applications deployed from Git repository
 - **NGINX** web server with custom ConfigMap
 - **Traefik** ingress controller for traffic routing
+- **KubeVIP** providing Virtual IP for LoadBalancer services
 
 **What Gets Deployed:**
-- NGINX on port 30080 (direct NodePort access)
-- Traefik on port 30090 (ingress controller with creative dashboard)
+- NGINX on port 30080 (direct NodePort access) + Ingress at nginx.kind.local
+- Traefik on port 80 (ingress controller with creative dashboard) via KubeVIP
+- KubeVIP for LoadBalancer service support
 - Automatic GitOps sync from GitHub repository
+
+**Optional Setup:**
+- Configure **mDNS** for automatic `*.kind.local` domain resolution
+- See [README-kubevip-mdns.md](README-kubevip-mdns.md) for complete setup
 
 ---
 
@@ -303,32 +309,45 @@ kubectl get pods -n nginx
 
 Once FluxCD has synced and deployed your applications, test the services:
 
-**Test NGINX on port 30080:**
+**Test NGINX on port 30080 (direct NodePort):**
 ```bash
 curl http://localhost:30080
 ```
 
 Expected response: HTML page served by NGINX with "Hello from Oklahoma"
 
-**Test Traefik on port 30090:**
+**Test Traefik on port 80 (via KubeVIP LoadBalancer):**
 ```bash
-curl http://localhost:30090
+curl http://localhost:80
+# or just
+curl http://localhost
 ```
 
 Expected response: Creative HTML page showing a plane being directed by Traefik air traffic control!
 
-**Test with verbose output:**
+**Test with Ingress (kind.local domains):**
+
+After setting up mDNS (see [README-kubevip-mdns.md](README-kubevip-mdns.md)):
+
 ```bash
-curl -v http://localhost:30080
-curl -v http://localhost:30090
+# Access NGINX via Traefik ingress
+curl http://nginx.kind.local
+
+# All *.kind.local domains route through Traefik automatically!
 ```
 
-**For more details on Traefik:**
-See [README-Traefik.md](README-Traefik.md) for:
-- How Traefik works as an ingress controller
-- Creating Ingress routes
-- Accessing the Traefik dashboard
-- Advanced traffic routing
+**Manual testing without mDNS:**
+```bash
+# Add to /etc/hosts temporarily
+echo "127.0.0.1 nginx.kind.local" | sudo tee -a /etc/hosts
+
+# Test
+curl http://nginx.kind.local
+```
+
+**For more details:**
+- **Traefik ingress**: See [README-Traefik.md](README-Traefik.md)
+- **KubeVIP & mDNS setup**: See [README-kubevip-mdns.md](README-kubevip-mdns.md)
 
 ---
 

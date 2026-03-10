@@ -51,7 +51,7 @@ Think of it like this:
 ```
 External Request (browser/curl)
          ↓
-   [LoadBalancer/NodePort] ← Entry point to cluster
+   [Port 80 - HTTP] ← Entry point to cluster
          ↓
    [Traefik Pod] ← Ingress Controller
          ↓
@@ -66,7 +66,7 @@ External Request (browser/curl)
 
 Traefik examines incoming HTTP requests and routes them based on:
 
-1. **Hostname** - `app1.example.com` → Service A, `app2.example.com` → Service B
+1. **Hostname** - `app1.kind.local` → Service A, `app2.kind.local` → Service B
 2. **Path** - `/api` → API Service, `/blog` → Blog Service
 3. **Headers** - Custom routing based on HTTP headers
 4. **Middleware** - Apply authentication, rate limiting, etc.
@@ -108,7 +108,7 @@ Just like an air traffic controller:
 │  │  └──────────────────────────────────┘      │    │
 │  │                                             │    │
 │  │  ┌──────────────────────────────────┐      │    │
-│  │  │   Service (NodePort 30090)       │      │    │
+│  │  │   Service (LoadBalancer)         │      │    │
 │  │  │   - Web entry point (80)         │      │    │
 │  │  │   - Dashboard (8080)             │      │    │
 │  │  └──────────────────────────────────┘      │    │
@@ -133,7 +133,7 @@ Just like an air traffic controller:
 │                                                      │
 └─────────────────────────────────────────────────────┘
 
-External Access: http://localhost:30090
+External Access: http://localhost:80
 ```
 
 ---
@@ -145,7 +145,7 @@ Before deploying Traefik, ensure you have:
 - ✅ KinD cluster running (3 nodes recommended)
 - ✅ FluxCD installed and connected to Git repository
 - ✅ kubectl configured
-- ✅ Port 30090 available on localhost (configured in kind-cluster.yaml)
+- ✅ Port 80 available on localhost (configured in kind-cluster.yaml)
 
 Verify:
 ```bash
@@ -248,7 +248,7 @@ The main Traefik controller that:
 
 ### 6. Service (`service.yaml`)
 
-Exposes Traefik via NodePort (30090) so external traffic can reach it.
+Exposes Traefik via LoadBalancer with hostPort binding on port 80 so external traffic can reach it directly on standard HTTP port.
 
 ---
 
@@ -269,7 +269,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: myapp.local
+  - host: myapp.kind.local
     http:
       paths:
       - path: /
@@ -294,7 +294,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: mysite.local
+  - host: mysite.kind.local
     http:
       paths:
       - path: /api
@@ -326,7 +326,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: api.example.com
+  - host: api.kind.local
     http:
       paths:
       - path: /
@@ -336,7 +336,7 @@ spec:
             name: api-service
             port:
               number: 8080
-  - host: blog.example.com
+  - host: blog.kind.local
     http:
       paths:
       - path: /
@@ -357,7 +357,9 @@ spec:
 Open your browser or use curl:
 
 ```bash
-curl http://localhost:30090
+curl http://localhost:80
+# or simply
+curl http://localhost
 ```
 
 You should see a creative HTML page showing a plane being directed by Traefik!
@@ -378,21 +380,19 @@ kubectl port-forward -n traefik svc/traefik 8080:8080
 open http://localhost:8080/dashboard/
 ```
 
-Or access via NodePort if configured:
-```bash
-curl http://localhost:30090/dashboard/
-```
+**Note:** The dashboard is on port 8080 (via port-forward), while the main Traefik ingress is on port 80.
 
 ### Test Routing Through an Ingress
 
 If you've created an Ingress with host-based routing:
 
 ```bash
-# Add host to /etc/hosts (for local testing)
-echo "127.0.0.1 myapp.local" | sudo tee -a /etc/hosts
+# With mDNS configured (see kubevip setup), domains resolve automatically:
+curl http://myapp.kind.local
 
-# Test the route
-curl http://myapp.local:30090
+# Or manually add to /etc/hosts if not using mDNS:
+echo "127.0.0.1 myapp.kind.local" | sudo tee -a /etc/hosts
+curl http://myapp.kind.local
 ```
 
 ---
@@ -480,21 +480,25 @@ kubectl describe ingress <name> -n <namespace>
 kubectl logs -n traefik -l app.kubernetes.io/name=traefik | grep -i error
 ```
 
-### Issue: Cannot Access via NodePort
+### Issue: Cannot Access on Port 80
 
-**Verify NodePort service:**
+**Verify service and hostPort configuration:**
 ```bash
 kubectl get svc -n traefik
+kubectl get pods -n traefik -o wide
 ```
 
 Ensure:
-- NodePort 30090 is configured in kind-cluster.yaml
-- Port is exposed with `extraPortMappings`
-- No firewall blocking the port
+- Port 80 is configured in kind-cluster.yaml with `extraPortMappings`
+- Traefik pod has `hostPort: 80` in deployment
+- Traefik pod is running on the control-plane node (where port mapping exists)
+- No other service is using port 80
 
 **Test locally:**
 ```bash
-curl -v http://localhost:30090
+curl -v http://localhost:80
+# Check if pod is on correct node
+kubectl get pods -n traefik -o wide
 ```
 
 ### Issue: 404 Not Found
@@ -576,7 +580,7 @@ Configure automatic TLS certificates:
 
 ```yaml
 args:
-  - --certificatesresolvers.letsencrypt.acme.email=admin@example.com
+  - --certificatesresolvers.letsencrypt.acme.email=admin@kind.local
   - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
   - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
 ```
@@ -586,7 +590,7 @@ Use in Ingress:
 spec:
   tls:
   - hosts:
-    - myapp.example.com
+    - myapp.kind.local
     secretName: myapp-tls
 ```
 
