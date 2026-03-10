@@ -39,6 +39,7 @@ spec:
         # Logging
         - --log.level=INFO
         - --accesslog=true
+        - --ping=true
         ports:
         - name: web
           containerPort: 80
