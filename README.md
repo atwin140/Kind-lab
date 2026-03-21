@@ -2,7 +2,7 @@
 A place to learn about kube
 # Getting started with KinD on RHEL 10 (and deploying NGINX from a ConfigMap)
 
-You’ve got years of Solaris muscle-memory — nice. Think of this as building a **little “zones-like” Kubernetes playground** right on your laptop: KinD runs each Kubernetes “node” as a container.
+You've got years of Solaris muscle-memory - nice. Think of this as building a **little "zones-like" Kubernetes playground** right on your laptop: KinD runs each Kubernetes "node" as a container.
 
 This guide sets up:
 - **KinD (Kubernetes in Docker/Podman)**
@@ -14,7 +14,7 @@ This guide sets up:
 ## 0) Prereqs (what you need installed)
 
 ### Packages
-On RHEL 10, Podman is the standard container engine. KinD can use **rootless Podman** (via the Podman socket / Docker-compatible API). KinD supports rootless Podman and requires cgroup v2 on the host. citeturn0search0turn0search12
+On RHEL 10, Podman is the standard container engine. KinD can use **rootless Podman** (via the Podman socket / Docker-compatible API). KinD supports rootless Podman and requires cgroup v2 on the host.
 
 Install baseline tools:
 
@@ -25,7 +25,7 @@ sudo dnf install -y \
   tar gzip
 ```
 
-> `podman-docker` provides Docker CLI compatibility (so tools that expect `docker` can still work). citeturn0search2
+> `podman-docker` provides Docker CLI compatibility (so tools that expect `docker` can still work).
 
 ---
 
@@ -52,7 +52,7 @@ echo 'export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"' >> ~/.b
 echo 'export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"' >> ~/.zshrc
 ```
 
-These steps follow Red Hat’s RHEL 10 container-tools guidance for enabling `podman.socket` and using `DOCKER_HOST` for rootless Podman compatibility. citeturn0search2
+These steps follow Red Hat's RHEL 10 container-tools guidance for enabling `podman.socket` and using `DOCKER_HOST` for rootless Podman compatibility.
 
 Quick sanity check:
 
@@ -65,7 +65,7 @@ podman ps
 
 ## 2) Install kubectl
 
-Kubernetes upstream provides a simple “download the stable binary” method. citeturn0search1
+Kubernetes upstream provides a simple "download the stable binary" method.
 
 ```bash
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -80,7 +80,7 @@ kubectl version --client
 
 ## 3) Install kind
 
-KinD’s quick start recommends installing from the release binaries. citeturn0search5
+KinD's quick start recommends installing from the release binaries.
 
 Example for x86_64:
 
@@ -100,8 +100,8 @@ kind version
 ## 4) Create a KinD cluster with NodePort mapped to localhost
 
 ### Why the extra port mapping?
-In KinD, “nodes” are containers. A **NodePort** opens on the *node*, but that’s still inside the container network.  
-So to reach it via `localhost`, you map that NodePort from the node-container to your host using `extraPortMappings`. citeturn0search11turn0search15
+In KinD, "nodes" are containers. A **NodePort** opens on the *node*, but that's still inside the container network.  
+So to reach it via `localhost`, you map that NodePort from the node-container to your host using `extraPortMappings`.
 
 Create `kind-cluster.yaml`:
 
@@ -117,7 +117,7 @@ nodes:
         protocol: TCP
 ```
 
-This is the same mechanism documented in KinD’s configuration docs (`extraPortMappings`). citeturn0search11
+This is the same mechanism documented in KinD's configuration docs (`extraPortMappings`).
 
 Create the cluster:
 
@@ -147,7 +147,7 @@ data:
         <title>Hello from KinD</title>
       </head>
       <body>
-        <h1>Hakuna Matata — your NGINX page is live 🎉</h1>
+        <h1>Hakuna Matata - your NGINX page is live!</h1>
         <p>Served from a Kubernetes ConfigMap, running on KinD.</p>
       </body>
     </html>
@@ -227,8 +227,8 @@ Or open in a browser:
 
 ## 7) Quick troubleshooting spells (if something acts like Scar)
 
-### `kind create cluster` can’t find Docker / can’t talk to the daemon
-Make sure the Podman socket is enabled and `DOCKER_HOST` is set (rootless Podman). citeturn0search2
+### `kind create cluster` can't find Docker / can't talk to the daemon
+Make sure the Podman socket is enabled and `DOCKER_HOST` is set (rootless Podman).
 
 ```bash
 systemctl --user status podman.socket
@@ -236,7 +236,7 @@ echo "$DOCKER_HOST"
 ```
 
 ### NodePort reachable from inside cluster but not from localhost
-You must create the cluster **with the port mapping** (you can’t add `extraPortMappings` after the fact). citeturn0search15  
+You must create the cluster **with the port mapping** (you can't add `extraPortMappings` after the fact).  
 If needed:
 
 ```bash
@@ -245,7 +245,7 @@ kind create cluster --name lab --config kind-cluster.yaml
 ```
 
 ### Rootless requirements
-KinD supports rootless Podman and expects cgroup v2 hosts for that mode. citeturn0search0turn0search12
+KinD supports rootless Podman and expects cgroup v2 hosts for that mode.
 
 ---
 
@@ -258,41 +258,8 @@ kind delete cluster --name lab
 
 ---
 
-## Next Steps
-
-### Continue Learning with FluxCD GitOps Lab
-
-Ready to take your Kubernetes skills to the next level? This repository includes a comprehensive **FluxCD GitOps lab** that teaches you how to:
-
-- Deploy FluxCD for continuous delivery
-- Connect Kubernetes to GitHub for automated deployments
-- Implement GitOps workflows
-- Monitor and troubleshoot FluxCD controllers
-
-**To access the FluxCD lab:**
-
-1. **Switch to the FluxCD lab branch:**
-   ```bash
-   git checkout Fluxcd-Lab
-   ```
-
-2. **Follow the complete guide:**
-   - See [README-FLUXCD.md](README-FLUXCD.md) for a professional, step-by-step guide
-   - Includes both public and private repository configurations
-   - Complete troubleshooting and monitoring sections
-
-3. **What you'll learn:**
-   - Installing FluxCD on KinD clusters
-   - Configuring GitRepository and Kustomization resources
-   - Using HTTPS and SSH authentication with GitHub
-   - Monitoring pod status and FluxCD controllers
-   - Implementing GitOps best practices
-
-### Other Optional Next Steps
-
-If you want to explore more Kubernetes concepts:
+## Next steps (optional)
+If you want, your next "level up" after this is:
 - `kubectl port-forward` (quick dev loop)
 - Ingress (NGINX Ingress Controller) instead of NodePort
-- Building images locally and loading into KinD (`kind load docker-image ...`)
-- Helm charts for package management
-- Kubernetes operators for advanced automation
+- building images locally and loading into KinD (`kind load docker-image ...`)
