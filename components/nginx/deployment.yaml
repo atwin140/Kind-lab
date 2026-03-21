@@ -20,10 +20,10 @@ spec:
         - containerPort: 80
         volumeMounts:
         - name: html
-          mountPath: /usr/share/nginx/html/index.html
+          mountPath: /opt/bitnami/nginx/html/index.html
           subPath: index.html
         - name: css
-          mountPath: /usr/share/nginx/html/style.css
+          mountPath: /opt/bitnami/nginx/html/style.css
           subPath: style.css
       volumes:
       - name: html
