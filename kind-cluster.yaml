@@ -1,18 +1,21 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: fluxcd-test
-# ─── Second network (Multus + macvlan) ────────────────────────────────────────
-# To attach pods to the local 10.0.1.x network, run setup-macvlan.sh BEFORE
-# and AFTER cluster creation:
+# ─── Second network (Multus + macvlan) on RHEL 10 / Podman ──────────────────
+# Kind requires rootful Podman on RHEL for macvlan to work.
+# Run all three steps to get pods onto the 10.0.1.x LAN:
 #
-#   ./setup-macvlan.sh create-network          # create Docker macvlan network
-#   kind create cluster --config kind-cluster.yaml
-#   ./setup-macvlan.sh attach-nodes            # connect nodes to macvlan network
+#   sudo ./setup-macvlan.sh create-network
+#   sudo KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --config kind-cluster.yaml
+#   sudo ./setup-macvlan.sh attach-nodes
 #
 # Then Multus (deployed by FluxCD) installs the NetworkAttachmentDefinition
 # "local-network" in the default namespace.  Annotate any pod with:
 #   k8s.v1.cni.cncf.io/networks: local-network
 # to give it a second NIC with an IP in 10.0.1.200-10.0.1.250.
+#
+# SELinux: if pods fail to start, run:
+#   sudo setsebool -P container_manage_cgroup on
 # ─────────────────────────────────────────────────────────────────────────────
 nodes:
 - role: control-plane
