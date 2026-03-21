@@ -1,0 +1,45 @@
+# NetworkAttachmentDefinition – local-network
+#
+# Attaches pods to the physical 10.0.1.x LAN using macvlan on eth1.
+# eth1 is the second NIC added to each Kind node container by setup-macvlan.sh.
+#
+# To attach a pod to this network, add this annotation to its pod spec:
+#
+#   annotations:
+#     k8s.v1.cni.cncf.io/networks: local-network
+#
+# The pod will receive an IP from 10.0.1.200-10.0.1.250 automatically
+# (tracked by Whereabouts) and be directly reachable on the LAN.
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: local-network
+  namespace: default
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: macvlan/local
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "name": "local-network",
+      "plugins": [
+        {
+          "type": "macvlan",
+          "master": "eth1",
+          "mode": "bridge",
+          "ipam": {
+            "type": "whereabouts",
+            "datastore": "kubernetes",
+            "kubernetes": {
+              "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
+            },
+            "range": "10.0.1.200/24",
+            "range_end": "10.0.1.250",
+            "gateway": "10.0.1.1",
+            "log_file": "/tmp/whereabouts.log",
+            "log_level": "debug"
+          }
+        }
+      ]
+    }

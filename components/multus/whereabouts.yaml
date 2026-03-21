@@ -1,0 +1,210 @@
+# Whereabouts IPAM v0.7.0
+# Tracks IP allocations across nodes using Kubernetes API objects (no etcd needed).
+# Reference: https://github.com/k8snetworkplumbingwg/whereabouts
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ippools.whereabouts.cni.cncf.io
+spec:
+  group: whereabouts.cni.cncf.io
+  scope: Cluster
+  names:
+    plural: ippools
+    singular: ippool
+    kind: IPPool
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                range:
+                  type: string
+                allocations:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      podref:
+                        type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: overlappingrangeipreservations.whereabouts.cni.cncf.io
+spec:
+  group: whereabouts.cni.cncf.io
+  scope: Cluster
+  names:
+    plural: overlappingrangeipreservations
+    singular: overlappingrangeipreservation
+    kind: OverlappingRangeIPReservation
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                podref:
+                  type: string
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: whereabouts
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: whereabouts-cni
+rules:
+  - apiGroups: ["whereabouts.cni.cncf.io"]
+    resources:
+      - ippools
+      - overlappingrangeipreservations
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "watch", "get"]
+  - apiGroups: ["k8s.cni.cncf.io"]
+    resources: ["network-attachment-definitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: whereabouts-cni
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: whereabouts-cni
+subjects:
+  - kind: ServiceAccount
+    name: whereabouts
+    namespace: kube-system
+---
+# Whereabouts runs as a DaemonSet on every node so the CNI binary can
+# call the local daemon for IP assignments without needing external IPAM.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: whereabouts
+  namespace: kube-system
+  labels:
+    app: whereabouts
+spec:
+  selector:
+    matchLabels:
+      app: whereabouts
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: whereabouts
+    spec:
+      hostNetwork: true
+      serviceAccountName: whereabouts
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      initContainers:
+        - name: install-cni
+          image: ghcr.io/k8snetworkplumbingwg/whereabouts:v0.7.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cp /usr/src/whereabouts/bin/whereabouts /host/opt/cni/bin/whereabouts && \
+              echo "Whereabouts CNI binary installed"
+          volumeMounts:
+            - name: cnibin
+              mountPath: /host/opt/cni/bin
+      containers:
+        - name: whereabouts
+          image: ghcr.io/k8snetworkplumbingwg/whereabouts:v0.7.0
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "50Mi"
+            limits:
+              cpu: "100m"
+              memory: "100Mi"
+          env:
+            - name: NODENAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: WHEREABOUTS_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: cnibin
+              mountPath: /host/opt/cni/bin
+            - name: cni-net-dir
+              mountPath: /host/etc/cni/net.d
+            - name: whereabouts-run
+              mountPath: /run/whereabouts
+      volumes:
+        - name: cnibin
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni-net-dir
+          hostPath:
+            path: /etc/cni/net.d
+        - name: whereabouts-run
+          hostPath:
+            path: /run/whereabouts
+            type: DirectoryOrCreate
+---
+# Periodic IP reconciler – cleans up stale allocations left by deleted pods.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: whereabouts-reconciler
+  namespace: kube-system
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: whereabouts
+          tolerations:
+            - operator: Exists
+              effect: NoSchedule
+          containers:
+            - name: whereabouts-reconciler
+              image: ghcr.io/k8snetworkplumbingwg/whereabouts:v0.7.0
+              command:
+                - /usr/src/whereabouts/bin/reconciler
+              env:
+                - name: WHEREABOUTS_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+          restartPolicy: OnFailure
