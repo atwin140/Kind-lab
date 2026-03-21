@@ -5,6 +5,9 @@ configMapGenerator:
 - name: nginx-html
   files:
   - index.html=./index.html
+- name: nginx-css
+  files:
+  - style.css=./style.css
 resources:
 - namespace.yaml
 - deployment.yaml

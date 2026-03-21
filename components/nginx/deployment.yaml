@@ -22,7 +22,13 @@ spec:
         - name: html
           mountPath: /usr/share/nginx/html/index.html
           subPath: index.html
+        - name: css
+          mountPath: /usr/share/nginx/html/style.css
+          subPath: style.css
       volumes:
       - name: html
         configMap:
           name: nginx-html
+      - name: css
+        configMap:
+          name: nginx-css
